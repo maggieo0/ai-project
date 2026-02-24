@@ -1,8 +1,8 @@
 #!/bin/bash
 # =============================================================================
-# StudyAI - Deploy Script
-# Builds Docker images and deploys to Google Cloud Run via Terraform.
-# Usage: cd Project_DATS && ./deploy.sh
+# StudyAI - Deploy Script (using Cloud Build)
+# Builds images on Google's servers and deploys to Cloud Run.
+# Usage: cd ai-project && ./deploy.sh
 # =============================================================================
 set -e
 
@@ -25,15 +25,15 @@ echo "  Project: $GOOGLE_CLOUD_PROJECT_ID"
 echo "  Registry: $REGISTRY"
 echo "=============================================="
 
-# ── Step 1: Build & push backend ────────────────────────────────────────────
+# ── Step 1: Build & push backend via Cloud Build ─────────────────────────────
 echo ""
-echo "🔨 Building backend image..."
-docker build -t $REGISTRY/studyai-backend:latest $APP_DIR/backend/
-echo "📤 Pushing backend..."
-docker push $REGISTRY/studyai-backend:latest
-echo "✅ Backend image pushed"
+echo "🔨 Building backend image via Cloud Build..."
+gcloud builds submit $APP_DIR/backend/ \
+  --tag=$REGISTRY/studyai-backend:latest \
+  --project=$GOOGLE_CLOUD_PROJECT_ID
+echo "✅ Backend image built and pushed"
 
-# ── Step 2: Deploy backend first so we can get its URL ──────────────────────
+# ── Step 2: Deploy backend to Cloud Run ──────────────────────────────────────
 echo ""
 echo "🚀 Deploying backend to Cloud Run..."
 gcloud run deploy studyai-backend \
@@ -53,18 +53,15 @@ BACKEND_URL=$(gcloud run services describe studyai-backend \
 BACKEND_WS="wss://${BACKEND_URL#https://}"
 echo "✅ Backend live at: $BACKEND_URL"
 
-# ── Step 3: Build & push frontend with backend URL baked in ─────────────────
+# ── Step 3: Build & push frontend via Cloud Build ────────────────────────────
 echo ""
-echo "🔨 Building frontend image..."
-docker build \
-  --build-arg NEXT_PUBLIC_WS_URL="$BACKEND_WS" \
-  -t $REGISTRY/studyai-frontend:latest \
-  $APP_DIR/frontend/
-echo "📤 Pushing frontend..."
-docker push $REGISTRY/studyai-frontend:latest
-echo "✅ Frontend image pushed"
+echo "🔨 Building frontend image via Cloud Build..."
+gcloud builds submit $APP_DIR/frontend/ \
+  --tag=$REGISTRY/studyai-frontend:latest \
+  --project=$GOOGLE_CLOUD_PROJECT_ID
+echo "✅ Frontend image built and pushed"
 
-# ── Step 4: Deploy frontend ──────────────────────────────────────────────────
+# ── Step 4: Deploy frontend to Cloud Run ─────────────────────────────────────
 echo ""
 echo "🚀 Deploying frontend to Cloud Run..."
 gcloud run deploy studyai-frontend \
@@ -72,6 +69,7 @@ gcloud run deploy studyai-frontend \
   --region=$REGION \
   --platform=managed \
   --allow-unauthenticated \
+  --set-env-vars="NEXT_PUBLIC_WS_URL=$BACKEND_WS" \
   --memory=512Mi \
   --cpu=1 \
   --max-instances=5
