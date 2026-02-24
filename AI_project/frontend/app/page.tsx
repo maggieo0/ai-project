@@ -7,6 +7,12 @@ import ExamViewer from '../components/ExamViewer'
 
 type StudyMode = 'flashcards' | 'practice' | 'exam' | 'clarification' | null
 
+interface ClarificationData {
+  mode: 'clarification'
+  message: string
+  options: string[]
+}
+
 interface StudyData {
   mode: StudyMode
   [key: string]: unknown
@@ -32,7 +38,6 @@ export default function Home() {
 
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data)
-
       if (msg.type === 'status') {
         setStatusMessage(msg.message)
       } else if (msg.type === 'study_content') {
@@ -60,16 +65,13 @@ export default function Home() {
 
   const handleSubmit = () => {
     if (!input.trim() || !wsRef.current || isLoading) return
-
     setIsLoading(true)
     setStudyData(null)
     wsRef.current.send(JSON.stringify({ message: input }))
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      handleSubmit()
-    }
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleSubmit()
   }
 
   const handleReset = () => {
@@ -77,6 +79,10 @@ export default function Home() {
     setInput('')
     setStatusMessage('')
   }
+
+  const clarificationData = studyData?.mode === 'clarification'
+    ? (studyData as unknown as ClarificationData)
+    : null
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
@@ -101,12 +107,10 @@ export default function Home() {
 
       <div className="max-w-5xl mx-auto px-6 py-10">
 
-        {/* Hero / Input Section */}
+        {/* Input Section */}
         {!studyData && (
           <div className="text-center mb-10">
-            <h2 className="text-4xl font-bold text-gray-900 mb-3">
-              Study smarter with AI 🎓
-            </h2>
+            <h2 className="text-4xl font-bold text-gray-900 mb-3">Study smarter with AI 🎓</h2>
             <p className="text-lg text-gray-500 mb-10">
               Create flashcards, practice questions, or a full exam — just describe what you need.
             </p>
@@ -163,17 +167,14 @@ export default function Home() {
         )}
 
         {/* Clarification */}
-        {studyData?.mode === 'clarification' && (
+        {clarificationData && (
           <div className="bg-white rounded-2xl shadow-lg border border-indigo-100 p-8 text-center">
-            <p className="text-gray-700 text-lg mb-6">{(studyData as { message: string }).message}</p>
+            <p className="text-gray-700 text-lg mb-6">{clarificationData.message}</p>
             <div className="flex justify-center gap-4 flex-wrap">
-              {((studyData as { options: string[] }).options || []).map((opt: string) => (
+              {clarificationData.options.map((opt: string) => (
                 <button
                   key={opt}
-                  onClick={() => {
-                    setInput(opt)
-                    setStudyData(null)
-                  }}
+                  onClick={() => { setInput(opt); setStudyData(null) }}
                   className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all font-medium"
                 >
                   {opt}
